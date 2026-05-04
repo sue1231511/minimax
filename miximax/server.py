@@ -138,6 +138,8 @@ async def handle_sse(request):
             write_stream,
             mcp._mcp_server.create_initialization_options(),
         )
+    from starlette.responses import Response
+    return Response()
 
 
 async def health(request):
