@@ -16,8 +16,9 @@
     --border: #e7e2de;
     --err: #b91c1c;
   }
+  /* 配色固定为自己的一套；宿主只决定用亮色还是暗色(data-theme)，不再采用宿主的颜色变量 */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #1c1917;
       --fg: #f5f5f4;
       --muted: #a8a29e;
@@ -28,6 +29,17 @@
       --border: #3a3532;
       --err: #f87171;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1917;
+    --fg: #f5f5f4;
+    --muted: #a8a29e;
+    --track: #4a423e;
+    --accent: #fb923c;
+    --accent-fg: #1c1917;
+    --card: #26211f;
+    --border: #3a3532;
+    --err: #f87171;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: transparent; color: var(--fg);
@@ -428,22 +440,14 @@
     }
   });
 
+  // 只采用宿主的亮/暗主题来选择自己的配色，不采用宿主的颜色变量，保证语音条的颜色和设计一致
   function applyHostContext(ctx) {
     try {
-      var vars = ctx && ctx.styles && ctx.styles.variables;
-      if (vars && typeof vars === "object") {
-        var root = document.documentElement.style;
-        var map = {
-          "--color-background-primary": "--bg",
-          "--color-text-primary": "--fg",
-          "--color-text-secondary": "--muted",
-          "--color-background-secondary": "--card",
-          "--color-border-primary": "--border"
-        };
-        Object.keys(map).forEach(function (k) { if (vars[k]) root.setProperty(map[k], vars[k]); });
+      var theme = ctx && ctx.theme;
+      if (theme === "dark" || theme === "light") {
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.style.colorScheme = theme;
       }
-      if (ctx && ctx.theme === "dark") document.documentElement.style.colorScheme = "dark";
-      else if (ctx && ctx.theme === "light") document.documentElement.style.colorScheme = "light";
     } catch (e) {
       log("applyHostContext", e, ctx);
     }
