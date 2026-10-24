@@ -172,7 +172,7 @@ def _prune_audio_cache() -> None:
     name="cove_player",
     description="Cove 语音播放器 (MCP Apps)",
     mime_type=PLAYER_MIME,
-    meta={"ui": {"csp": {}}},
+    meta={"ui": {"csp": {}, "prefersBorder": False}},
 )
 def player_resource() -> str:
     """返回播放器页面 HTML。"""
