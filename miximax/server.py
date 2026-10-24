@@ -150,7 +150,11 @@ PLAYER_HTML_PATH = Path(__file__).with_name("player.html")
 
 AUDIO_TTL_SECONDS = 3600
 AUDIO_CACHE_MAX = 20
-# audio_id -> {"ts": 创建时间, "b64": base64 音频, "mime": MIME 类型}
+# 每次交给播放器的原始字节数。必须是 3 的倍数：这样每块的 base64 之间没有填充符，
+# 播放器可以直接把各块的 base64 字符串首尾相接成完整的 base64。
+# 取小一点是为了让单次工具结果足够小，避免被中间转发层(宿主/聚合站)丢弃或超时。
+AUDIO_CHUNK_BYTES = 30000
+# audio_id -> {"ts": 创建时间, "raw": 音频原始字节, "mime": MIME 类型}
 _audio_cache: dict = {}
 
 
@@ -224,7 +228,7 @@ async def speak_player(
         audio_id = str(uuid.uuid4())
         _audio_cache[audio_id] = {
             "ts": time.time(),
-            "b64": base64.b64encode(resp.content).decode("ascii"),
+            "raw": resp.content,
             "mime": "audio/mpeg",
         }
         _prune_audio_cache()
@@ -244,12 +248,13 @@ async def speak_player(
 
 
 @mcp.tool(meta={"ui": {"visibility": ["app"]}})
-async def fetch_player_audio(audio_id: str) -> str:
+async def fetch_player_audio(audio_id: str, offset: int = 0) -> str:
     """
-    仅供播放器页面调用：按 audioId 取回音频(base64)。不要主动调用此工具。
+    仅供播放器页面调用：按 audioId 分块取回音频(base64)。不要主动调用此工具。
 
     Args:
         audio_id: speak_player 返回的 audioId
+        offset: 本次从音频的第几个字节开始读，首块为 0
     """
     try:
         entry = _audio_cache.get(audio_id)
@@ -258,9 +263,23 @@ async def fetch_player_audio(audio_id: str) -> str:
         if time.time() - entry["ts"] > AUDIO_TTL_SECONDS:
             _audio_cache.pop(audio_id, None)
             return json.dumps({"error": "音频已过期，请重新生成"}, ensure_ascii=False)
-        return json.dumps({"audio_base64": entry["b64"], "mime_type": entry["mime"]})
+
+        raw = entry["raw"]
+        total = len(raw)
+        if not isinstance(offset, int) or offset < 0 or offset >= total:
+            return json.dumps({"error": f"offset 超出范围: {offset} (总长 {total})"}, ensure_ascii=False)
+
+        end = min(offset + AUDIO_CHUNK_BYTES, total)
+        return json.dumps({
+            "chunk_base64": base64.b64encode(raw[offset:end]).decode("ascii"),
+            "offset": offset,
+            "next_offset": end,
+            "total": total,
+            "done": end >= total,
+            "mime_type": entry["mime"],
+        })
     except Exception as e:
-        logger.exception("fetch_player_audio failed: audio_id=%s", audio_id)
+        logger.exception("fetch_player_audio failed: audio_id=%s offset=%s", audio_id, offset)
         return json.dumps({"error": f"读取音频出错: {e}"}, ensure_ascii=False)
 
 
