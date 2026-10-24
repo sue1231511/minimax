@@ -512,26 +512,36 @@
   var FETCH_TIMEOUT_MS = 20000;    // 单次取块的超时；超时就如实报错，不要让转圈无限持续
 
   // 调用一次取块工具。第一次会依次尝试各个候选名，成功后记住名字。
+  // 全部失败时，报告里带上每个名字各自的失败原因(而不是只剩最后一个)，方便定位是超时、丢包还是工具不存在。
   function callFetchTool(audioId, offset) {
     var names = fetchToolName ? [fetchToolName] : FETCH_TOOL_CANDIDATES;
-    var i = 0, lastErr = null;
+    var i = 0, failures = [];
+    function fail(name, err) {
+      failures.push(name + " → " + ((err && err.message) || String(err)));
+    }
     function attempt() {
       if (i >= names.length) {
-        return Promise.reject(lastErr || new Error("取音频的工具不可用"));
+        var e = new Error(failures.join("；") || "取音频的工具不可用");
+        e.failures = failures;
+        return Promise.reject(e);
       }
       var name = names[i++];
       return request("tools/call", { name: name, arguments: { audio_id: audioId, offset: offset } }, FETCH_TIMEOUT_MS).then(function (res) {
         if (res && res.isError) {
           var m = (res.content && res.content[0] && res.content[0].text) || "取音频失败";
-          lastErr = new Error(m);
+          fail(name, new Error(m));
           // 工具存在但业务报错(如已过期)：不必再试别的名字
-          if (/过期|不存在|expired|not found/i.test(m) && !/unknown tool|Unknown tool/i.test(m)) throw lastErr;
+          if (/过期|不存在|expired|not found/i.test(m) && !/unknown tool|Unknown tool|not available/i.test(m)) {
+            var be = new Error(m);
+            be.final = true;
+            throw be;
+          }
           return attempt();
         }
         fetchToolName = name;
         return res;
       }, function (err) {
-        lastErr = err;
+        fail(name, err);
         return attempt();
       });
     }
