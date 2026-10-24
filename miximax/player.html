@@ -35,17 +35,17 @@
   body { padding: 2px; }
 
   /* 语音条：一行，所有元素同一条水平中线 */
-  .pill { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 4px;
-    background: var(--card); border: 1px solid var(--border); border-radius: 28px; }
-  .pet { flex: 0 0 auto; width: 56px; height: 44px; margin-right: -7px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-  .btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  .pill { --pill-h: 64px; display: flex; align-items: center; gap: 10px; height: var(--pill-h); padding: 0 18px 0 6px;
+    background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--pill-h) / 2); }
+  .pet { flex: 0 0 auto; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .btn { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
     background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
   .btn:disabled { opacity: .5; cursor: default; }
-  .btn svg { width: 18px; height: 18px; display: block; }
+  .btn svg { width: 20px; height: 20px; display: block; }
   .btn svg.hidden { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .btn .spin { animation: spin .9s linear infinite; }
-  .wave { flex: 1 1 auto; min-width: 0; height: 32px; display: flex; align-items: center; gap: 2px;
+  .wave { flex: 1 1 auto; min-width: 0; height: 36px; display: flex; align-items: center; gap: 2px;
     cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; outline: none; }
   .wave:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 6px; }
   .wave i { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: var(--track); }
@@ -57,7 +57,7 @@
   .err.hidden { display: none; }
 
   /* 无文字页脚：只有两个图标链接（文字放在 aria-label / tooltip / README） */
-  .tools { display: flex; justify-content: flex-end; gap: 2px; margin: 2px 11px 0 0; }
+  .tools { display: flex; justify-content: flex-end; gap: 2px; margin: 2px 12px 0 0; }
   .tools a { width: 26px; height: 26px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; cursor: pointer; }
   .tools a:hover, .tools a:focus-visible { color: var(--accent); outline: none; }
   .tools svg { width: 14px; height: 14px; display: block; }
@@ -65,7 +65,7 @@
 </head>
 <body>
 <div class="pill" id="pill">
-  <canvas class="pet" id="pet" width="28" height="22" role="img" aria-label="Clawd"></canvas>
+  <canvas class="pet" id="pet" width="78" height="57" role="img" aria-label="Clawd"></canvas>
   <button class="btn" id="play" type="button" aria-label="播放" disabled>
     <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
     <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
@@ -136,26 +136,45 @@
 
   /* ---------- Clawd 像素形象（素材来自 watersalt0305/operit-clawd，AGPL-3.0） ---------- */
 
-  var FRAME = 32;                            // 源图每帧 32x32
-  // 以螃蟹身体中心(源图 x=16, y=16，行列均含端点)为画布正中心裁切，保证所有动作的身体都落在语音条中线上
-  var CROP = { x: 2, y: 5, w: 28, h: 22 };
+  var FRAME = 32;            // 源图每帧 32x32
+  // 画布以"视觉重心"为准居中，而不是按包围盒居中：
+  // 每个动作先算出所有帧里所有像素(身体权重 1，气泡/星星等配饰权重 0.6)的重心 cx,cy，
+  // 绘制时把这个重心放在画布正中。这样气泡在右上、钳子举高、星星在两侧等动作，
+  // 螃蟹本体会向相反方向让出位置，整体看起来左右上下均衡。
+  var CAN_W = 26, CAN_H = 19;  // 画布大小(单位：源图像素)，足够容纳所有动作的所有帧
+  var scale = 3;               // 每个源图像素放大成 scale 个屏幕像素(整数，保持像素清晰)
   var PET = {
-    idle: { fps: 3.85, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAqklEQVR42u3ZywmFMBQEUPvIwrIsxVqtRnERcOEHQYhkzgFXgQx4hwvvOQwAAAAAAAAAAAAAQM+WeVrfPL3lm7/5K0BwAeTLj16A9eJSxsvQ41mv+ekF9P4tgOgFIL9d/n7/U3499/4bbZ6vN1Hr/PQCmL8FEF0A+fItwODfQApg/ubvTxD58n0GrRefBdyd9ZCvAOZvAQQXQL789HwAAAAAAAAAAAAA4Dc2ik7w2YGe5PcAAAAASUVORK5CYII=" },
-    look: { fps: 3.33, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAmklEQVR42u3YQQqAIBBAUe/homN5lM7aaWwVuAkUMkvfg2jh4gcTQxQCAAAAAAAAAAAAADCzY0+55dLX15+nbwD6+hZAyjFut9HyrEe/tq3f7wUcOf+WZ9C3APQtAP23Pz2e/hTR19cf1zcAff2VF4CfIPr6+gagr7/yArgeorzXnunr6/+/bwD6+isvAAAAAAAAAAAAAADgK07HaRtIf6SrvQAAAABJRU5ErkJggg==" },
-    talk: { fps: 4.55, frames: 4, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAApElEQVR42u3WwQmEMBAFUPvwYFlbirXagCd7cBERgyiurBKcvAfBQyA/ZMaQqgIAgH8MQz+eDflx8xVAA8whdd1kPYAlf28fOfLTfUTO9we6ARSg+AbI/QiV/5Cu/YxXhvxY+QqgAeaFpxflUWg6Jz9WvgIk6+/tYTsXJv/q1XP3VSQ/b74ClN4AHkHyHYD8dRPp99c5+THyFaD0BgAAAAAA4I2+iDkiqYgvW6wAAAAASUVORK5CYII=" },
-    happy: { fps: 9.09, frames: 6, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAAAgCAYAAABEmHeFAAABHUlEQVR42u3ZUQqCQBQFUPfhR8tqKbWSvltV0D6i30JIGGQCddQZnXMgCixf6n1vpJoGAAAAAKr3vJw/3WOrz61R//24flxJJulD0wdp7mOpBkiprwFM4CoboDuG/jjC13taATXAxgGMhSbcX9ue/taKbUudwGNqbFl/6wGgATJdgGFowoDFgjbcNtzP1BAuVV8DHKwB5kzAJRrgdb+Nvujde1MCGGualPp7PP+7n8Rr1J87Afd4/LEVwPnPuPLk/gK5JmBJAXT+C2iAsUugAKp/pPxZAn/fIXweu+0I9au9BQuXtSlL4NInQgPU2QDZ81fSz2C5A1jCDxG1NWAx+TOBqfkWrPEHCLmbL3v+TGBqvgUEAAAAAAAAACjcF4vVXeqqhECLAAAAAElFTkSuQmCC" },
-    error: { fps: 11.11, frames: 4, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAAz0lEQVR42u3XwQ2CMBQGYPbg4DoOYOIoupqjmHD04AKeIRy4GINBKa+l35f0pCn/kz9FmgYAAGBVz9OxH1et10+l6x79uBSgwgJMN7+IEihA+gIUcxrgP4ATYGPX2+v/2e+Xc79kpRomKkcO8/+SYbz5qxWgbQ9fLzp9J2UBInLkMH9ohvfN5y68xQmwdY4c5g/N4ASo9ARY+tzJ5Rm8Vo4c5g/NoACVF8BbQNlvAc2efgAFCM4wbfpp87nP9pIjh/lDMyhA5QUAAAAAAKBUA/NS3/B2C/lCAAAAAElFTkSuQmCC" }
+    idle: { fps: 3.85, frames: 8, cx: 16.0, cy: 15.85, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAqklEQVR42u3ZywmFMBQEUPvIwrIsxVqtRnERcOEHQYhkzgFXgQx4hwvvOQwAAAAAAAAAAAAAQM+WeVrfPL3lm7/5K0BwAeTLj16A9eJSxsvQ41mv+ekF9P4tgOgFIL9d/n7/U3499/4bbZ6vN1Hr/PQCmL8FEF0A+fItwODfQApg/ubvTxD58n0GrRefBdyd9ZCvAOZvAQQXQL789HwAAAAAAAAAAAAA4Dc2ik7w2YGe5PcAAAAASUVORK5CYII=" },
+    look: { fps: 3.33, frames: 8, cx: 16.0, cy: 15.45, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAmklEQVR42u3YQQqAIBBAUe/homN5lM7aaWwVuAkUMkvfg2jh4gcTQxQCAAAAAAAAAAAAADCzY0+55dLX15+nbwD6+hZAyjFut9HyrEe/tq3f7wUcOf+WZ9C3APQtAP23Pz2e/hTR19cf1zcAff2VF4CfIPr6+gagr7/yArgeorzXnunr6/+/bwD6+isvAAAAAAAAAAAAAADgK07HaRtIf6SrvQAAAABJRU5ErkJggg==" },
+    talk: { fps: 4.55, frames: 4, cx: 17.49, cy: 13.87, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAApElEQVR42u3WwQmEMBAFUPvwYFlbirXagCd7cBERgyiurBKcvAfBQyA/ZMaQqgIAgH8MQz+eDflx8xVAA8whdd1kPYAlf28fOfLTfUTO9we6ARSg+AbI/QiV/5Cu/YxXhvxY+QqgAeaFpxflUWg6Jz9WvgIk6+/tYTsXJv/q1XP3VSQ/b74ClN4AHkHyHYD8dRPp99c5+THyFaD0BgAAAAAA4I2+iDkiqYgvW6wAAAAASUVORK5CYII=" },
+    happy: { fps: 9.09, frames: 6, cx: 16.0, cy: 13.24, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAAAgCAYAAABEmHeFAAABHUlEQVR42u3ZUQqCQBQFUPfhR8tqKbWSvltV0D6i30JIGGQCddQZnXMgCixf6n1vpJoGAAAAAKr3vJw/3WOrz61R//24flxJJulD0wdp7mOpBkiprwFM4CoboDuG/jjC13taATXAxgGMhSbcX9ue/taKbUudwGNqbFl/6wGgATJdgGFowoDFgjbcNtzP1BAuVV8DHKwB5kzAJRrgdb+Nvujde1MCGGualPp7PP+7n8Rr1J87Afd4/LEVwPnPuPLk/gK5JmBJAXT+C2iAsUugAKp/pPxZAn/fIXweu+0I9au9BQuXtSlL4NInQgPU2QDZ81fSz2C5A1jCDxG1NWAx+TOBqfkWrPEHCLmbL3v+TGBqvgUEAAAAAAAAACjcF4vVXeqqhECLAAAAAElFTkSuQmCC" },
+    error: { fps: 11.11, frames: 4, cx: 15.97, cy: 15.18, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAAz0lEQVR42u3XwQ2CMBQGYPbg4DoOYOIoupqjmHD04AKeIRy4GINBKa+l35f0pCn/kz9FmgYAAGBVz9OxH1et10+l6x79uBSgwgJMN7+IEihA+gIUcxrgP4ATYGPX2+v/2e+Xc79kpRomKkcO8/+SYbz5qxWgbQ9fLzp9J2UBInLkMH9ohvfN5y68xQmwdY4c5g/N4ASo9ARY+tzJ5Rm8Vo4c5g/NoACVF8BbQNlvAc2efgAFCM4wbfpp87nP9pIjh/lDMyhA5QUAAAAAAKBUA/NS3/B2C/lCAAAAAElFTkSuQmCC" }
   };
   var petCv = $("pet"), petCtx = null, petImgs = {}, petState = null, petFrame = 0, petTimer = null;
   var reduceMotion = false;
   try { reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { log("reduceMotion", e); }
 
+  function petSize() {
+    try {
+      petCv.width = CAN_W * scale;
+      petCv.height = CAN_H * scale;
+      petCv.style.width = petCv.width + "px";
+      petCv.style.height = petCv.height + "px";
+      petCtx = petCv.getContext("2d");
+      petCtx.imageSmoothingEnabled = false;
+    } catch (e) {
+      log("petSize", e, scale);
+    }
+  }
+
   function petDraw() {
     try {
-      var img = petImgs[petState];
-      if (!petCtx || !img || !img.complete || !img.naturalWidth) return;
-      petCtx.clearRect(0, 0, CROP.w, CROP.h);
-      petCtx.drawImage(img, petFrame * FRAME + CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, CROP.w, CROP.h);
+      var img = petImgs[petState], def = PET[petState];
+      if (!petCtx || !img || !def || !img.complete || !img.naturalWidth) return;
+      // 整帧绘制，使该动作的视觉重心落在画布中心；取整到屏幕像素，避免像素块发虚
+      var dx = Math.round((CAN_W / 2 - def.cx) * scale), dy = Math.round((CAN_H / 2 - def.cy) * scale);
+      petCtx.clearRect(0, 0, petCv.width, petCv.height);
+      petCtx.drawImage(img, petFrame * FRAME, 0, FRAME, FRAME, dx, dy, FRAME * scale, FRAME * scale);
     } catch (e) {
       log("petDraw", e, petState + "#" + petFrame);
     }
@@ -188,8 +207,7 @@
 
   function initPet() {
     try {
-      petCtx = petCv.getContext("2d");
-      petCtx.imageSmoothingEnabled = false;
+      petSize();
       Object.keys(PET).forEach(function (k) {
         var img = new Image();
         img.onload = function () { if (petState === k) petDraw(); };
@@ -220,6 +238,20 @@
       out.push(0.22 + 0.5 * r * (0.55 + 0.45 * Math.sin(i / 5.5) * Math.sin(i / 5.5)));
     }
     return out;
+  }
+
+  // 窄屏时形象缩到 2 倍，语音条同步变矮；宽度够时用 3 倍
+  function applyScale() {
+    try {
+      var want = document.documentElement.clientWidth < 360 ? 2 : 3;
+      if (want === scale && petCv.width === CAN_W * scale) return;
+      scale = want;
+      document.getElementById("pill").style.setProperty("--pill-h", (CAN_H * scale + 7) + "px");
+      petSize();
+      petDraw();
+    } catch (e) {
+      log("applyScale", e, scale);
+    }
   }
 
   function buildBars() {
@@ -573,13 +605,14 @@
 
   /* ---------- 启动握手 ---------- */
 
-  buildBars();
   initPet();
+  applyScale();
+  buildBars();
   bindLink("link-pet");
   bindLink("link-src");
 
   if (typeof ResizeObserver === "function") {
-    new ResizeObserver(function () { buildBars(); if (initialized) reportSize(); }).observe(document.documentElement);
+    new ResizeObserver(function () { applyScale(); buildBars(); if (initialized) reportSize(); }).observe(document.documentElement);
   }
 
   request("ui/initialize", {
