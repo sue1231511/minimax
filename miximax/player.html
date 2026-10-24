@@ -44,7 +44,9 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: transparent; color: var(--fg);
     font: 13px/1.4 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif; }
-  body { padding: 0; }
+  body { padding: 2px 0; }
+  /* 宿主不再给页面留左右边距时(手机上页面铺满整个屏幕宽度)，自己留出和正文一致的边距 */
+  :root.inset body { padding: 2px 20px; }
 
   /* 语音条：一行，所有元素同一条水平中线 */
   .pill { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 4px;
@@ -440,9 +442,24 @@
     }
   });
 
+  // 手机上宿主让页面铺满屏幕宽度，语音条会顶到屏幕边缘；此时左右各留 20px，和正文边距一致。
+  // 桌面端页面宽度就是正文栏宽度，不需要。判断依据：宿主声明 platform 为 mobile，或页面宽度已经等于屏幕宽度。
+  var hostPlatform = "";
+  function applyInset() {
+    try {
+      var full = false;
+      try { full = window.screen && window.screen.width > 0 && window.innerWidth >= window.screen.width - 2; } catch (e) { log("applyInset.screen", e); }
+      document.documentElement.classList.toggle("inset", hostPlatform === "mobile" || full);
+    } catch (e) {
+      log("applyInset", e, hostPlatform);
+    }
+  }
+
   // 只采用宿主的亮/暗主题来选择自己的配色，不采用宿主的颜色变量，保证语音条的颜色和设计一致
   function applyHostContext(ctx) {
     try {
+      if (ctx && typeof ctx.platform === "string") hostPlatform = ctx.platform;
+      applyInset();
       var theme = ctx && ctx.theme;
       if (theme === "dark" || theme === "light") {
         document.documentElement.setAttribute("data-theme", theme);
@@ -611,13 +628,14 @@
   /* ---------- 启动握手 ---------- */
 
   initPet();
+  applyInset();
   applyScale();
   buildBars();
   bindLink("link-pet");
   bindLink("link-src");
 
   if (typeof ResizeObserver === "function") {
-    new ResizeObserver(function () { applyScale(); buildBars(); if (initialized) reportSize(); }).observe(document.documentElement);
+    new ResizeObserver(function () { applyInset(); applyScale(); buildBars(); if (initialized) reportSize(); }).observe(document.documentElement);
   }
 
   request("ui/initialize", {
