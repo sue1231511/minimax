@@ -35,9 +35,9 @@
   body { padding: 2px; }
 
   /* 语音条：一行，所有元素同一条水平中线 */
-  .pill { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px 0 10px;
+  .pill { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 4px;
     background: var(--card); border: 1px solid var(--border); border-radius: 28px; }
-  .pet { flex: 0 0 auto; width: 56px; height: 40px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .pet { flex: 0 0 auto; width: 56px; height: 44px; margin-right: -7px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
   .btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
     background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
   .btn:disabled { opacity: .5; cursor: default; }
@@ -57,7 +57,7 @@
   .err.hidden { display: none; }
 
   /* 无文字页脚：只有两个图标链接（文字放在 aria-label / tooltip / README） */
-  .tools { display: flex; justify-content: flex-end; gap: 2px; margin: 2px 6px 0; }
+  .tools { display: flex; justify-content: flex-end; gap: 2px; margin: 2px 11px 0 0; }
   .tools a { width: 26px; height: 26px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; cursor: pointer; }
   .tools a:hover, .tools a:focus-visible { color: var(--accent); outline: none; }
   .tools svg { width: 14px; height: 14px; display: block; }
@@ -65,7 +65,7 @@
 </head>
 <body>
 <div class="pill" id="pill">
-  <canvas class="pet" id="pet" width="28" height="20" role="img" aria-label="Clawd"></canvas>
+  <canvas class="pet" id="pet" width="28" height="22" role="img" aria-label="Clawd"></canvas>
   <button class="btn" id="play" type="button" aria-label="播放" disabled>
     <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
     <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
@@ -137,7 +137,8 @@
   /* ---------- Clawd 像素形象（素材来自 watersalt0305/operit-clawd，AGPL-3.0） ---------- */
 
   var FRAME = 32;                            // 源图每帧 32x32
-  var CROP = { x: 2, y: 3, w: 28, h: 20 };   // 裁掉四周空白，只留螃蟹所在区域
+  // 以螃蟹身体中心(源图 x=16, y=16，行列均含端点)为画布正中心裁切，保证所有动作的身体都落在语音条中线上
+  var CROP = { x: 2, y: 5, w: 28, h: 22 };
   var PET = {
     idle: { fps: 3.85, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAqklEQVR42u3ZywmFMBQEUPvIwrIsxVqtRnERcOEHQYhkzgFXgQx4hwvvOQwAAAAAAAAAAAAAQM+WeVrfPL3lm7/5K0BwAeTLj16A9eJSxsvQ41mv+ekF9P4tgOgFIL9d/n7/U3499/4bbZ6vN1Hr/PQCmL8FEF0A+fItwODfQApg/ubvTxD58n0GrRefBdyd9ZCvAOZvAQQXQL789HwAAAAAAAAAAAAA4Dc2ik7w2YGe5PcAAAAASUVORK5CYII=" },
     look: { fps: 3.33, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAmklEQVR42u3YQQqAIBBAUe/homN5lM7aaWwVuAkUMkvfg2jh4gcTQxQCAAAAAAAAAAAAADCzY0+55dLX15+nbwD6+hZAyjFut9HyrEe/tq3f7wUcOf+WZ9C3APQtAP23Pz2e/hTR19cf1zcAff2VF4CfIPr6+gagr7/yArgeorzXnunr6/+/bwD6+isvAAAAAAAAAAAAAADgK07HaRtIf6SrvQAAAABJRU5ErkJggg==" },
