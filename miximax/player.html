@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cove Player</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #6b7280;
+    --track: #e5e7eb;
+    --accent: #c2410c;
+    --accent-fg: #ffffff;
+    --card: #faf7f5;
+    --border: #e7e2de;
+    --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917;
+      --fg: #f5f5f4;
+      --muted: #a8a29e;
+      --track: #3a3532;
+      --accent: #fb923c;
+      --accent-fg: #1c1917;
+      --card: #26211f;
+      --border: #3a3532;
+      --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif; }
+  .card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0;
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+  .btn { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; padding: 0; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn svg { width: 22px; height: 22px; display: block; }
+  .body { flex: 1 1 auto; min-width: 0; }
+  .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status { color: var(--muted); font-size: 12px; min-height: 18px; word-break: break-word; }
+  .status.err { color: var(--err); }
+  .bar { position: relative; height: 6px; margin: 8px 0 4px; background: var(--track); border-radius: 3px; cursor: pointer; touch-action: none; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 3px; }
+  .time { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .hidden, .btn svg.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <button class="btn" id="play" type="button" aria-label="播放" disabled>
+    <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+    <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
+  </button>
+  <div class="body">
+    <div class="title" id="title">Cove</div>
+    <div class="status" id="status">正在连接…</div>
+    <div class="bar" id="bar" role="slider" aria-label="进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="fill" id="fill"></div></div>
+    <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+  </div>
+</div>
+<audio id="audio" preload="auto"></audio>
+
+<script>
+(function () {
+  "use strict";
+
+  var PROTOCOL_VERSION = "2026-01-26";
+  // 通过聚合站(MCPHub)转发时，工具名会带上服务名前缀，所以两种写法都试。
+  var FETCH_TOOL_CANDIDATES = ["fetch_player_audio", "minimax-fetch_player_audio", "minimax_fetch_player_audio"];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var audio = $("audio"), playBtn = $("play"), statusEl = $("status"), titleEl = $("title");
+  var fillEl = $("fill"), barEl = $("bar"), curEl = $("cur"), durEl = $("dur");
+  var iconPlay = $("icon-play"), iconPause = $("icon-pause");
+
+  var nextId = 1;
+  var pending = {};
+  var loadedAudioId = null;
+  var initialized = false;
+
+  function log(where, err, extra) {
+    try {
+      console.error("[cove-player] " + where, err && (err.stack || err.message || err), extra || "");
+    } catch (e) { /* 控制台不可用时无事可做 */ }
+  }
+
+  function setStatus(text, isErr) {
+    statusEl.textContent = text || "";
+    statusEl.className = "status" + (isErr ? " err" : "");
+  }
+
+  function fmt(t) {
+    if (!isFinite(t) || t < 0) t = 0;
+    var m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function showPlaying(on) {
+    iconPlay.classList.toggle("hidden", on);
+    iconPause.classList.toggle("hidden", !on);
+    playBtn.setAttribute("aria-label", on ? "暂停" : "播放");
+  }
+
+  /* ---------- 与宿主(Claude)的 postMessage JSON-RPC ---------- */
+
+  function send(msg) {
+    try {
+      window.parent.postMessage(msg, "*");
+    } catch (e) {
+      log("send", e, msg && msg.method);
+    }
+  }
+
+  function request(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++;
+      var timer = setTimeout(function () {
+        delete pending[id];
+        reject(new Error("宿主没有响应: " + method));
+      }, 60000);
+      pending[id] = { resolve: resolve, reject: reject, timer: timer };
+      send({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  function notify(method, params) {
+    send({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function reportSize() {
+    try {
+      var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+      notify("ui/notifications/size-changed", { height: h });
+    } catch (e) {
+      log("reportSize", e);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    try {
+      if (event.source !== window.parent) return;
+      var msg = event.data;
+      if (!msg || msg.jsonrpc !== "2.0") return;
+
+      if (msg.id !== undefined && msg.method === undefined) {
+        var p = pending[msg.id];
+        if (!p) return;
+        clearTimeout(p.timer);
+        delete pending[msg.id];
+        if (msg.error) {
+          p.reject(new Error(typeof msg.error === "string" ? msg.error : (msg.error.message || JSON.stringify(msg.error))));
+        } else {
+          p.resolve(msg.result);
+        }
+        return;
+      }
+
+      if (msg.method === "ui/notifications/tool-result") {
+        onToolResult(msg.params || {});
+      } else if (msg.method === "ui/notifications/tool-input") {
+        onToolInput(msg.params || {});
+      } else if (msg.method === "ui/notifications/host-context-changed") {
+        applyHostContext(msg.params || {});
+      } else if (msg.method === "ui/resource-teardown" && msg.id !== undefined) {
+        try { audio.pause(); } catch (e) { log("teardown.pause", e); }
+        send({ jsonrpc: "2.0", id: msg.id, result: {} });
+      } else if (msg.method === "ping" && msg.id !== undefined) {
+        send({ jsonrpc: "2.0", id: msg.id, result: {} });
+      }
+    } catch (e) {
+      log("message-handler", e, event && event.data);
+    }
+  });
+
+  function applyHostContext(ctx) {
+    try {
+      var vars = ctx && ctx.styles && ctx.styles.variables;
+      if (vars && typeof vars === "object") {
+        var root = document.documentElement.style;
+        var map = {
+          "--color-background-primary": "--bg",
+          "--color-text-primary": "--fg",
+          "--color-text-secondary": "--muted",
+          "--color-background-secondary": "--card",
+          "--color-border-primary": "--border"
+        };
+        Object.keys(map).forEach(function (k) { if (vars[k]) root.setProperty(map[k], vars[k]); });
+      }
+      if (ctx && ctx.theme === "dark") document.documentElement.style.colorScheme = "dark";
+      else if (ctx && ctx.theme === "light") document.documentElement.style.colorScheme = "light";
+    } catch (e) {
+      log("applyHostContext", e, ctx);
+    }
+  }
+
+  /* ---------- 业务：取回音频并播放 ---------- */
+
+  function onToolInput(params) {
+    try {
+      var args = params && params.arguments;
+      if (args && typeof args.text === "string" && args.text) {
+        titleEl.textContent = args.text.length > 40 ? args.text.slice(0, 40) + "…" : args.text;
+      }
+    } catch (e) {
+      log("onToolInput", e, params);
+    }
+  }
+
+  function extractAudioId(result) {
+    var sc = result && result.structuredContent;
+    if (sc && typeof sc.audio_id === "string") return sc.audio_id;
+    var parts = (result && result.content) || [];
+    for (var i = 0; i < parts.length; i++) {
+      var t = parts[i] && parts[i].type === "text" ? parts[i].text : "";
+      var m = /audioId:\s*([0-9a-fA-F-]{36})/.exec(t || "");
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  function onToolResult(result) {
+    try {
+      if (result && result.isError) {
+        var et = (result.content && result.content[0] && result.content[0].text) || "合成失败";
+        setStatus(et, true);
+        return;
+      }
+      var id = extractAudioId(result);
+      if (!id) {
+        setStatus("没有拿到音频编号", true);
+        log("onToolResult", new Error("audioId not found"), JSON.stringify(result).slice(0, 300));
+        return;
+      }
+      if (id === loadedAudioId) return;
+      loadedAudioId = id;
+      loadAudio(id);
+    } catch (e) {
+      log("onToolResult", e, result);
+      setStatus("解析结果出错: " + e.message, true);
+    }
+  }
+
+  function callFetchTool(audioId) {
+    var i = 0, lastErr = null;
+    function attempt() {
+      if (i >= FETCH_TOOL_CANDIDATES.length) {
+        return Promise.reject(lastErr || new Error("取音频的工具不可用"));
+      }
+      var name = FETCH_TOOL_CANDIDATES[i++];
+      return request("tools/call", { name: name, arguments: { audio_id: audioId } }).then(function (res) {
+        if (res && res.isError) {
+          var m = (res.content && res.content[0] && res.content[0].text) || "取音频失败";
+          lastErr = new Error(m);
+          // 工具存在但业务报错(如已过期)：不必再试别的名字
+          if (/过期|不存在|expired|not found/i.test(m) && !/unknown tool|Unknown tool/i.test(m)) throw lastErr;
+          return attempt();
+        }
+        return res;
+      }, function (err) {
+        lastErr = err;
+        return attempt();
+      });
+    }
+    return attempt();
+  }
+
+  function loadAudio(audioId) {
+    setStatus("正在取回音频…");
+    playBtn.disabled = true;
+    callFetchTool(audioId).then(function (res) {
+      var text = res && res.content && res.content[0] && res.content[0].text;
+      if (!text) throw new Error("音频数据为空");
+      var data = JSON.parse(text);
+      if (data.error) throw new Error(data.error);
+      if (!data.audio_base64) throw new Error("响应里没有 audio_base64");
+      audio.src = "data:" + (data.mime_type || "audio/mpeg") + ";base64," + data.audio_base64;
+      audio.load();
+      setStatus("");
+      playBtn.disabled = false;
+      var p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(function (e) {
+          // 浏览器拦截自动播放时，等用户点一下播放键即可
+          log("autoplay", e);
+          setStatus("点击播放键收听");
+        });
+      }
+    }).catch(function (e) {
+      log("loadAudio", e, audioId);
+      setStatus("取回音频失败: " + e.message, true);
+    });
+  }
+
+  /* ---------- 播放控件 ---------- */
+
+  playBtn.addEventListener("click", function () {
+    try {
+      if (audio.paused) {
+        var p = audio.play();
+        if (p && typeof p.catch === "function") p.catch(function (e) { log("play", e); setStatus("播放失败: " + e.message, true); });
+      } else {
+        audio.pause();
+      }
+    } catch (e) {
+      log("playBtn.click", e);
+    }
+  });
+
+  audio.addEventListener("play", function () { showPlaying(true); setStatus(""); });
+  audio.addEventListener("pause", function () { showPlaying(false); });
+  audio.addEventListener("ended", function () { showPlaying(false); });
+  audio.addEventListener("error", function () {
+    var code = audio.error ? audio.error.code : "?";
+    log("audio.error", new Error("media error code " + code));
+    setStatus("音频无法播放 (错误码 " + code + ")", true);
+  });
+  audio.addEventListener("loadedmetadata", function () { durEl.textContent = fmt(audio.duration); });
+  audio.addEventListener("timeupdate", function () {
+    var d = audio.duration, t = audio.currentTime;
+    curEl.textContent = fmt(t);
+    var pct = d > 0 ? Math.min(100, (t / d) * 100) : 0;
+    fillEl.style.width = pct + "%";
+    barEl.setAttribute("aria-valuenow", String(Math.round(pct)));
+  });
+
+  function seekFromEvent(ev) {
+    try {
+      var rect = barEl.getBoundingClientRect();
+      var ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+      if (audio.duration > 0) audio.currentTime = ratio * audio.duration;
+    } catch (e) {
+      log("seek", e);
+    }
+  }
+  barEl.addEventListener("pointerdown", function (ev) {
+    seekFromEvent(ev);
+    var move = function (e2) { seekFromEvent(e2); };
+    var up = function () { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  barEl.addEventListener("keydown", function (ev) {
+    try {
+      if (ev.key === "ArrowRight") audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
+      else if (ev.key === "ArrowLeft") audio.currentTime = Math.max(0, audio.currentTime - 5);
+    } catch (e) { log("keydown", e); }
+  });
+
+  /* ---------- 启动握手 ---------- */
+
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(function () { if (initialized) reportSize(); }).observe(document.documentElement);
+  }
+
+  request("ui/initialize", {
+    appInfo: { name: "cove-player", version: "1.0.0" },
+    appCapabilities: {},
+    protocolVersion: PROTOCOL_VERSION
+  }).then(function (res) {
+    initialized = true;
+    applyHostContext((res && res.hostContext) || {});
+    notify("ui/notifications/initialized", {});
+    setStatus("等待合成结果…");
+    reportSize();
+  }).catch(function (e) {
+    log("initialize", e);
+    setStatus("无法连接到宿主: " + e.message, true);
+  });
+})();
+</script>
+</body>
+</html>

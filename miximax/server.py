@@ -4,12 +4,25 @@ MiniMax TTS MCP Server - 让 Claude 能调用 MiniMax 语音合成
 """
 
 import os
+import json
+import time
+import uuid
+import base64
+import logging
+from pathlib import Path
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.responses import PlainTextResponse
 from mcp.server.sse import SseServerTransport
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("minimax-tts")
 
 # 环境变量
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
@@ -124,6 +137,133 @@ async def list_voices() -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# 对话内播放器 (MCP Apps)
+# speak_player 合成语音并让 Claude 在对话里显示播放器；
+# 播放器页面再通过隐藏工具 fetch_player_audio 取回音频数据，在页面内播放。
+# 原有的 text_to_speech / list_voices 不受影响。
+# ---------------------------------------------------------------------------
+
+PLAYER_URI = "ui://minimax-tts/player.html"
+PLAYER_MIME = "text/html;profile=mcp-app"
+PLAYER_HTML_PATH = Path(__file__).with_name("player.html")
+
+AUDIO_TTL_SECONDS = 3600
+AUDIO_CACHE_MAX = 20
+# audio_id -> {"ts": 创建时间, "b64": base64 音频, "mime": MIME 类型}
+_audio_cache: dict = {}
+
+
+def _prune_audio_cache() -> None:
+    """清理过期条目；超过上限时丢弃最旧的。"""
+    try:
+        now = time.time()
+        for key in [k for k, v in _audio_cache.items() if now - v["ts"] > AUDIO_TTL_SECONDS]:
+            _audio_cache.pop(key, None)
+        while len(_audio_cache) > AUDIO_CACHE_MAX:
+            oldest = min(_audio_cache, key=lambda k: _audio_cache[k]["ts"])
+            _audio_cache.pop(oldest, None)
+    except Exception:
+        logger.exception("_prune_audio_cache failed, cache_size=%s", len(_audio_cache))
+
+
+@mcp.resource(
+    PLAYER_URI,
+    name="cove_player",
+    description="Cove 语音播放器 (MCP Apps)",
+    mime_type=PLAYER_MIME,
+    meta={"ui": {"csp": {}}},
+)
+def player_resource() -> str:
+    """返回播放器页面 HTML。"""
+    try:
+        return PLAYER_HTML_PATH.read_text(encoding="utf-8")
+    except Exception:
+        logger.exception("player_resource: cannot read %s", PLAYER_HTML_PATH)
+        return "<html><body><p>Player UI not available.</p></body></html>"
+
+
+@mcp.tool(meta={"ui": {"resourceUri": PLAYER_URI}})
+async def speak_player(
+    text: str,
+    voice: str = "cove1",
+    speed: float = 1.0,
+    emotion: str = "neutral"
+) -> str:
+    """
+    用 Cove 的声音说话，并在对话里显示播放器，直接点播放就能听到（不需要打开链接）。
+
+    Args:
+        text: 要转换的文字内容
+        voice: 声音版本，可选 cove1/cove2/cove3，默认 cove1
+        speed: 语速，0.5-2.0，默认 1.0
+        emotion: 情绪，可选 neutral/happy/sad/angry/fearful/surprised/disgusted，默认 neutral
+
+    Returns:
+        播放器已启动的提示文本（包含 audioId）
+    """
+    try:
+        if not text or not text.strip():
+            raise ValueError("text 不能为空")
+
+        result = await text_to_speech(text=text, voice=voice, speed=speed, emotion=emotion)
+        if "error" in result:
+            raise RuntimeError(f"语音合成失败: {result.get('error')} (code={result.get('code')})")
+
+        audio_url = result.get("audio_url")
+        if not audio_url:
+            raise RuntimeError("MiniMax 没有返回音频地址")
+
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            resp = await client.get(audio_url)
+        if resp.status_code != 200:
+            raise RuntimeError(f"下载音频失败: HTTP {resp.status_code}")
+        if not resp.content:
+            raise RuntimeError("下载到的音频为空")
+
+        audio_id = str(uuid.uuid4())
+        _audio_cache[audio_id] = {
+            "ts": time.time(),
+            "b64": base64.b64encode(resp.content).decode("ascii"),
+            "mime": "audio/mpeg",
+        }
+        _prune_audio_cache()
+
+        preview = text.strip()
+        if len(preview) > 40:
+            preview = preview[:40] + "..."
+        return f"Cove Player started. audioId: {audio_id} 「{preview}」"
+
+    except Exception as e:
+        logger.exception(
+            "speak_player failed: voice=%s speed=%s emotion=%s text_len=%s",
+            voice, speed, emotion, len(text) if text else 0,
+        )
+        # 抛出让 FastMCP 以 isError 返回，播放器会显示错误信息
+        raise RuntimeError(str(e)) from e
+
+
+@mcp.tool(meta={"ui": {"visibility": ["app"]}})
+async def fetch_player_audio(audio_id: str) -> str:
+    """
+    仅供播放器页面调用：按 audioId 取回音频(base64)。不要主动调用此工具。
+
+    Args:
+        audio_id: speak_player 返回的 audioId
+    """
+    try:
+        entry = _audio_cache.get(audio_id)
+        if entry is None:
+            return json.dumps({"error": "音频不存在或已过期，请重新生成"}, ensure_ascii=False)
+        if time.time() - entry["ts"] > AUDIO_TTL_SECONDS:
+            _audio_cache.pop(audio_id, None)
+            return json.dumps({"error": "音频已过期，请重新生成"}, ensure_ascii=False)
+        return json.dumps({"audio_base64": entry["b64"], "mime_type": entry["mime"]})
+    except Exception as e:
+        logger.exception("fetch_player_audio failed: audio_id=%s", audio_id)
+        return json.dumps({"error": f"读取音频出错: {e}"}, ensure_ascii=False)
+
+
 # 创建 SSE transport
 transport = SseServerTransport("/messages/")
 
@@ -159,7 +299,8 @@ async def proxy_audio(request):
     
     try:
         audio_url = base64.urlsafe_b64decode(encoded_url).decode("utf-8")
-    except:
+    except Exception:
+        logger.exception("proxy_audio: invalid url encoding, encoded_url=%r", encoded_url[:80])
         return Response("Invalid url encoding", status_code=400)
     
     # 下载音频
@@ -181,6 +322,7 @@ async def proxy_audio(request):
                 }
             )
     except Exception as e:
+        logger.exception("proxy_audio failed: audio_url=%s", audio_url)
         return Response(f"Error: {str(e)}", status_code=500)
 
 
