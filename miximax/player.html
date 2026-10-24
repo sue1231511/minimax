@@ -48,7 +48,7 @@
   .wave { flex: 1 1 auto; min-width: 0; height: 32px; display: flex; align-items: center; gap: 2px;
     cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; outline: none; }
   .wave:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 6px; }
-  .wave i { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: var(--track); }
+  .wave i { flex: 1 1 0; min-width: 2px; border-radius: 2px; background: var(--track); }
   .wave i.on { background: var(--accent); }
   .time { flex: 0 0 auto; min-width: 34px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
@@ -225,7 +225,7 @@
 
   /* ---------- 波形进度条 ---------- */
 
-  var PEAK_N = 96;       // 峰值采样点数；实际显示的条数按宽度从中重采样
+  var PEAK_N = 240;      // 峰值采样点数；实际显示的条数按宽度从中重采样
   var peaks = defaultPeaks();
   var bars = [];
   var barCount = 0;
@@ -258,7 +258,7 @@
   function buildBars() {
     try {
       var w = waveEl.clientWidth || 120;
-      var n = Math.max(12, Math.min(48, Math.floor(w / 5)));
+      var n = Math.max(12, Math.min(PEAK_N, Math.floor((w + 2) / 5)));   // 每根约 3px + 2px 间距，铺满整个波形区
       if (n === barCount && bars.length) return;
       barCount = n;
       waveEl.textContent = "";
