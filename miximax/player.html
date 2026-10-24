@@ -383,13 +383,13 @@
     }
   }
 
-  function request(method, params) {
+  function request(method, params, timeoutMs) {
     return new Promise(function (resolve, reject) {
       var id = nextId++;
       var timer = setTimeout(function () {
         delete pending[id];
         reject(new Error("宿主没有响应: " + method));
-      }, 60000);
+      }, timeoutMs || 60000);
       pending[id] = { resolve: resolve, reject: reject, timer: timer };
       send({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
     });
@@ -508,28 +508,70 @@
     }
   }
 
-  function callFetchTool(audioId) {
-    var i = 0, lastErr = null;
+  var fetchToolName = null;        // 第一次成功的工具名，之后的块直接用它
+  var FETCH_TIMEOUT_MS = 20000;    // 单次取块的超时；超时就如实报错，不要让转圈无限持续
+
+  // 调用一次取块工具。第一次会依次尝试各个候选名，成功后记住名字。
+  // 全部失败时，报告里带上每个名字各自的失败原因(而不是只剩最后一个)，方便定位是超时、丢包还是工具不存在。
+  function callFetchTool(audioId, offset) {
+    var names = fetchToolName ? [fetchToolName] : FETCH_TOOL_CANDIDATES;
+    var i = 0, failures = [];
+    function fail(name, err) {
+      failures.push(name + " → " + ((err && err.message) || String(err)));
+    }
     function attempt() {
-      if (i >= FETCH_TOOL_CANDIDATES.length) {
-        return Promise.reject(lastErr || new Error("取音频的工具不可用"));
+      if (i >= names.length) {
+        var e = new Error(failures.join("；") || "取音频的工具不可用");
+        e.failures = failures;
+        return Promise.reject(e);
       }
-      var name = FETCH_TOOL_CANDIDATES[i++];
-      return request("tools/call", { name: name, arguments: { audio_id: audioId } }).then(function (res) {
+      var name = names[i++];
+      return request("tools/call", { name: name, arguments: { audio_id: audioId, offset: offset } }, FETCH_TIMEOUT_MS).then(function (res) {
         if (res && res.isError) {
           var m = (res.content && res.content[0] && res.content[0].text) || "取音频失败";
-          lastErr = new Error(m);
+          fail(name, new Error(m));
           // 工具存在但业务报错(如已过期)：不必再试别的名字
-          if (/过期|不存在|expired|not found/i.test(m) && !/unknown tool|Unknown tool/i.test(m)) throw lastErr;
+          if (/过期|不存在|expired|not found/i.test(m) && !/unknown tool|Unknown tool|not available/i.test(m)) {
+            var be = new Error(m);
+            be.final = true;
+            throw be;
+          }
           return attempt();
         }
+        fetchToolName = name;
         return res;
       }, function (err) {
-        lastErr = err;
+        fail(name, err);
         return attempt();
       });
     }
     return attempt();
+  }
+
+  function parseChunk(res) {
+    var text = res && res.content && res.content[0] && res.content[0].text;
+    if (!text) throw new Error("音频数据为空");
+    var data = JSON.parse(text);
+    if (data.error) throw new Error(data.error);
+    if (typeof data.chunk_base64 !== "string") throw new Error("响应里没有 chunk_base64");
+    return data;
+  }
+
+  // 按块取回整段音频，返回完整的 base64 和 MIME。各块字节数是 3 的倍数，base64 可直接首尾相接。
+  function fetchWholeAudio(audioId) {
+    var parts = [], mime = "audio/mpeg", guard = 0;
+    function next(offset) {
+      if (++guard > 400) return Promise.reject(new Error("音频分块过多"));
+      return callFetchTool(audioId, offset).then(function (res) {
+        var d = parseChunk(res);
+        parts.push(d.chunk_base64);
+        if (d.mime_type) mime = d.mime_type;
+        if (d.done) return { b64: parts.join(""), mime: mime };
+        if (!(d.next_offset > offset)) throw new Error("音频分块偏移异常: " + d.next_offset);
+        return next(d.next_offset);
+      });
+    }
+    return next(0);
   }
 
   function loadAudio(audioId) {
@@ -537,15 +579,10 @@
     setBtn("loading");
     setPet("look");
     playBtn.disabled = true;
-    callFetchTool(audioId).then(function (res) {
-      var text = res && res.content && res.content[0] && res.content[0].text;
-      if (!text) throw new Error("音频数据为空");
-      var data = JSON.parse(text);
-      if (data.error) throw new Error(data.error);
-      if (!data.audio_base64) throw new Error("响应里没有 audio_base64");
-      audio.src = "data:" + (data.mime_type || "audio/mpeg") + ";base64," + data.audio_base64;
+    fetchWholeAudio(audioId).then(function (a) {
+      audio.src = "data:" + a.mime + ";base64," + a.b64;
       audio.load();
-      computePeaks(data.audio_base64);
+      computePeaks(a.b64);
       setBtn("play");
       playBtn.disabled = false;
       var p = audio.play();
