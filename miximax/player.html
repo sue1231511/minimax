@@ -9,7 +9,7 @@
     --bg: #ffffff;
     --fg: #1f2328;
     --muted: #6b7280;
-    --track: #e5e7eb;
+    --track: #e2d9d3;
     --accent: #c2410c;
     --accent-fg: #ffffff;
     --card: #faf7f5;
@@ -21,7 +21,7 @@
       --bg: #1c1917;
       --fg: #f5f5f4;
       --muted: #a8a29e;
-      --track: #3a3532;
+      --track: #4a423e;
       --accent: #fb923c;
       --accent-fg: #1c1917;
       --card: #26211f;
@@ -31,46 +31,57 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: transparent; color: var(--fg);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif; }
-  .card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0;
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
-  .btn { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; padding: 0; }
-  .btn:disabled { opacity: .45; cursor: default; }
-  .btn svg { width: 22px; height: 22px; display: block; }
-  .body { flex: 1 1 auto; min-width: 0; }
-  .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .status { color: var(--muted); font-size: 12px; min-height: 18px; word-break: break-word; }
-  .status.err { color: var(--err); }
-  .bar { position: relative; height: 6px; margin: 8px 0 4px; background: var(--track); border-radius: 3px; cursor: pointer; touch-action: none; }
-  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 3px; }
-  .time { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .pet { flex: 0 0 auto; width: 84px; height: 60px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-  .foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 4px 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
-  .foot a { color: inherit; text-decoration: underline; text-underline-offset: 2px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
-  .foot a:hover { color: var(--accent); }
-  .foot svg { width: 12px; height: 12px; display: block; }
-  @media (max-width: 360px) { .pet { width: 56px; height: 40px; } }
-  .hidden, .btn svg.hidden { display: none; }
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif; }
+  body { padding: 2px; }
+
+  /* 语音条：一行，所有元素同一条水平中线 */
+  .pill { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px 0 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 28px; }
+  .pet { flex: 0 0 auto; width: 56px; height: 40px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+    background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn svg { width: 18px; height: 18px; display: block; }
+  .btn svg.hidden { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn .spin { animation: spin .9s linear infinite; }
+  .wave { flex: 1 1 auto; min-width: 0; height: 32px; display: flex; align-items: center; gap: 2px;
+    cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; outline: none; }
+  .wave:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 6px; }
+  .wave i { flex: 1 1 0; min-width: 2px; max-width: 4px; border-radius: 2px; background: var(--track); }
+  .wave i.on { background: var(--accent); }
+  .time { flex: 0 0 auto; min-width: 34px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  /* 仅出错时出现 */
+  .err { margin: 6px 12px 0; color: var(--err); font-size: 12px; word-break: break-word; }
+  .err.hidden { display: none; }
+
+  /* 无文字页脚：只有两个图标链接（文字放在 aria-label / tooltip / README） */
+  .tools { display: flex; justify-content: flex-end; gap: 2px; margin: 2px 6px 0; }
+  .tools a { width: 26px; height: 26px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; cursor: pointer; }
+  .tools a:hover, .tools a:focus-visible { color: var(--accent); outline: none; }
+  .tools svg { width: 14px; height: 14px; display: block; }
 </style>
 </head>
 <body>
-<div class="card" id="card">
+<div class="pill" id="pill">
   <canvas class="pet" id="pet" width="28" height="20" role="img" aria-label="Clawd"></canvas>
   <button class="btn" id="play" type="button" aria-label="播放" disabled>
     <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
     <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
+    <svg id="icon-load" class="hidden spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
   </button>
-  <div class="body">
-    <div class="title" id="title">Cove</div>
-    <div class="status" id="status">正在连接…</div>
-    <div class="bar" id="bar" role="slider" aria-label="进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="fill" id="fill"></div></div>
-    <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
-  </div>
+  <div class="wave" id="wave" role="slider" aria-label="进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"></div>
+  <span class="time" id="time">0:00</span>
 </div>
-<div class="foot" id="foot">
-  <span>像素形象 Clawd 来自 <a id="link-pet" href="https://github.com/watersalt0305/operit-clawd" target="_blank" rel="noopener noreferrer">operit-clawd</a>（AGPL-3.0，非官方粉丝作品，形象归 Anthropic）</span>
-  <a id="link-src" href="https://github.com/sue1231511/minimax" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7 3 12l5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg>本服务源码</a>
+<div class="err hidden" id="err" role="alert"></div>
+<div class="tools" id="tools">
+  <a id="link-pet" href="https://github.com/watersalt0305/operit-clawd" target="_blank" rel="noopener noreferrer" title="像素形象 Clawd 来自 operit-clawd（AGPL-3.0，非官方粉丝作品，形象归 Anthropic）" aria-label="像素形象 Clawd 来自 operit-clawd（AGPL-3.0，非官方粉丝作品，形象归 Anthropic）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r=".6" fill="currentColor"/></svg>
+  </a>
+  <a id="link-src" href="https://github.com/sue1231511/minimax" target="_blank" rel="noopener noreferrer" title="本服务源码（AGPL-3.0）" aria-label="本服务源码（AGPL-3.0）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7 3 12l5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg>
+  </a>
 </div>
 <audio id="audio" preload="auto"></audio>
 
@@ -83,9 +94,8 @@
   var FETCH_TOOL_CANDIDATES = ["fetch_player_audio", "minimax-fetch_player_audio", "minimax_fetch_player_audio"];
 
   var $ = function (id) { return document.getElementById(id); };
-  var audio = $("audio"), playBtn = $("play"), statusEl = $("status"), titleEl = $("title");
-  var fillEl = $("fill"), barEl = $("bar"), curEl = $("cur"), durEl = $("dur");
-  var iconPlay = $("icon-play"), iconPause = $("icon-pause");
+  var audio = $("audio"), playBtn = $("play"), errEl = $("err"), timeEl = $("time"), waveEl = $("wave");
+  var iconPlay = $("icon-play"), iconPause = $("icon-pause"), iconLoad = $("icon-load");
 
   var nextId = 1;
   var pending = {};
@@ -98,16 +108,30 @@
     } catch (e) { /* 控制台不可用时无事可做 */ }
   }
 
-  function setStatus(text, isErr) {
-    statusEl.textContent = text || "";
-    statusEl.className = "status" + (isErr ? " err" : "");
-    if (isErr) setPet("error");
-  }
-
   function fmt(t) {
     if (!isFinite(t) || t < 0) t = 0;
     var m = Math.floor(t / 60), s = Math.floor(t % 60);
     return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  /* 错误信息：仅出错时显示一行；平时整条语音条没有文字 */
+  function setError(text) {
+    if (text) {
+      errEl.textContent = text;
+      errEl.classList.remove("hidden");
+      setPet("error");
+    } else {
+      errEl.textContent = "";
+      errEl.classList.add("hidden");
+    }
+  }
+
+  /* 按钮三态：play / pause / loading */
+  function setBtn(mode) {
+    iconPlay.classList.toggle("hidden", mode !== "play");
+    iconPause.classList.toggle("hidden", mode !== "pause");
+    iconLoad.classList.toggle("hidden", mode !== "loading");
+    playBtn.setAttribute("aria-label", mode === "pause" ? "暂停" : (mode === "loading" ? "加载中" : "播放"));
   }
 
   /* ---------- Clawd 像素形象（素材来自 watersalt0305/operit-clawd，AGPL-3.0） ---------- */
@@ -178,6 +202,112 @@
     }
   }
 
+  /* ---------- 波形进度条 ---------- */
+
+  var PEAK_N = 96;       // 峰值采样点数；实际显示的条数按宽度从中重采样
+  var peaks = defaultPeaks();
+  var bars = [];
+  var barCount = 0;
+  var playedUpTo = -1;
+
+  // 音频未解码(或解码失败)时的占位波形：确定性的伪随机，不闪烁
+  function defaultPeaks() {
+    var out = [], seed = 7;
+    for (var i = 0; i < PEAK_N; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var r = seed / 233280;
+      out.push(0.22 + 0.5 * r * (0.55 + 0.45 * Math.sin(i / 5.5) * Math.sin(i / 5.5)));
+    }
+    return out;
+  }
+
+  function buildBars() {
+    try {
+      var w = waveEl.clientWidth || 120;
+      var n = Math.max(12, Math.min(48, Math.floor(w / 5)));
+      if (n === barCount && bars.length) return;
+      barCount = n;
+      waveEl.textContent = "";
+      bars = [];
+      for (var i = 0; i < n; i++) {
+        var b = document.createElement("i");
+        waveEl.appendChild(b);
+        bars.push(b);
+      }
+      playedUpTo = -1;
+      paintBars();
+      updateProgress();
+    } catch (e) {
+      log("buildBars", e, waveEl.clientWidth);
+    }
+  }
+
+  function paintBars() {
+    try {
+      var per = peaks.length / bars.length;
+      for (var i = 0; i < bars.length; i++) {
+        var from = Math.floor(i * per), to = Math.max(from + 1, Math.floor((i + 1) * per)), m = 0;
+        for (var j = from; j < to && j < peaks.length; j++) if (peaks[j] > m) m = peaks[j];
+        bars[i].style.height = Math.round(16 + 84 * Math.min(1, m)) + "%";
+      }
+    } catch (e) {
+      log("paintBars", e, bars.length);
+    }
+  }
+
+  function updateProgress() {
+    try {
+      var d = audio.duration, t = audio.currentTime;
+      var ratio = d > 0 ? Math.min(1, t / d) : 0;
+      var upTo = Math.floor(ratio * bars.length + 0.0001);
+      if (upTo !== playedUpTo) {
+        for (var i = 0; i < bars.length; i++) bars[i].classList.toggle("on", i < upTo);
+        playedUpTo = upTo;
+      }
+      waveEl.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      // 播放中显示剩余时间，其余时候显示总时长
+      timeEl.textContent = d > 0 ? fmt(!audio.paused && t > 0 ? d - t : d) : "0:00";
+    } catch (e) {
+      log("updateProgress", e);
+    }
+  }
+
+  // 解码音频得到真实波形；失败则保留占位波形，不影响播放
+  function computePeaks(b64) {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      var bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
+      for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      var ac = new AC();
+      var closeAc = function () { try { ac.close(); } catch (e) { log("computePeaks.close", e); } };
+      ac.decodeAudioData(bytes.buffer, function (buf) {
+        try {
+          var ch = buf.getChannelData(0), step = Math.floor(ch.length / PEAK_N) || 1, out = [], max = 0;
+          for (var p = 0; p < PEAK_N; p++) {
+            var sum = 0, cnt = 0;
+            for (var k = p * step; k < (p + 1) * step && k < ch.length; k += 8) { sum += ch[k] * ch[k]; cnt++; }
+            var rms = cnt ? Math.sqrt(sum / cnt) : 0;
+            out.push(rms);
+            if (rms > max) max = rms;
+          }
+          if (max > 0) {
+            peaks = out.map(function (v) { return Math.pow(v / max, 0.7); });
+            paintBars();
+          }
+        } catch (e) {
+          log("computePeaks.analyze", e, "len=" + len);
+        }
+        closeAc();
+      }, function (e) {
+        log("computePeaks.decode", e, "len=" + len);
+        closeAc();
+      });
+    } catch (e) {
+      log("computePeaks", e);
+    }
+  }
+
   /* 外链：优先让宿主在浏览器里打开(ui/open-link)，失败再回退到普通新窗口 */
   function bindLink(id) {
     var a = $(id);
@@ -193,12 +323,6 @@
         log("bindLink", e, id);
       }
     });
-  }
-
-  function showPlaying(on) {
-    iconPlay.classList.toggle("hidden", on);
-    iconPause.classList.toggle("hidden", !on);
-    playBtn.setAttribute("aria-label", on ? "暂停" : "播放");
   }
 
   /* ---------- 与宿主(Claude)的 postMessage JSON-RPC ---------- */
@@ -257,8 +381,6 @@
 
       if (msg.method === "ui/notifications/tool-result") {
         onToolResult(msg.params || {});
-      } else if (msg.method === "ui/notifications/tool-input") {
-        onToolInput(msg.params || {});
       } else if (msg.method === "ui/notifications/host-context-changed") {
         applyHostContext(msg.params || {});
       } else if (msg.method === "ui/resource-teardown" && msg.id !== undefined) {
@@ -295,17 +417,6 @@
 
   /* ---------- 业务：取回音频并播放 ---------- */
 
-  function onToolInput(params) {
-    try {
-      var args = params && params.arguments;
-      if (args && typeof args.text === "string" && args.text) {
-        titleEl.textContent = args.text.length > 40 ? args.text.slice(0, 40) + "…" : args.text;
-      }
-    } catch (e) {
-      log("onToolInput", e, params);
-    }
-  }
-
   function extractAudioId(result) {
     var sc = result && result.structuredContent;
     if (sc && typeof sc.audio_id === "string") return sc.audio_id;
@@ -321,13 +432,14 @@
   function onToolResult(result) {
     try {
       if (result && result.isError) {
-        var et = (result.content && result.content[0] && result.content[0].text) || "合成失败";
-        setStatus(et, true);
+        setBtn("play");
+        setError((result.content && result.content[0] && result.content[0].text) || "合成失败");
         return;
       }
       var id = extractAudioId(result);
       if (!id) {
-        setStatus("没有拿到音频编号", true);
+        setBtn("play");
+        setError("没有拿到音频编号");
         log("onToolResult", new Error("audioId not found"), JSON.stringify(result).slice(0, 300));
         return;
       }
@@ -336,7 +448,8 @@
       loadAudio(id);
     } catch (e) {
       log("onToolResult", e, result);
-      setStatus("解析结果出错: " + e.message, true);
+      setBtn("play");
+      setError("解析结果出错: " + e.message);
     }
   }
 
@@ -365,7 +478,8 @@
   }
 
   function loadAudio(audioId) {
-    setStatus("正在取回音频…");
+    setError("");
+    setBtn("loading");
     setPet("look");
     playBtn.disabled = true;
     callFetchTool(audioId).then(function (res) {
@@ -376,20 +490,21 @@
       if (!data.audio_base64) throw new Error("响应里没有 audio_base64");
       audio.src = "data:" + (data.mime_type || "audio/mpeg") + ";base64," + data.audio_base64;
       audio.load();
-      setStatus("");
+      computePeaks(data.audio_base64);
+      setBtn("play");
       playBtn.disabled = false;
       var p = audio.play();
       if (p && typeof p.catch === "function") {
         p.catch(function (e) {
           // 浏览器拦截自动播放时，等用户点一下播放键即可
           log("autoplay", e);
-          setStatus("点击播放键收听");
           setPet("idle");
         });
       }
     }).catch(function (e) {
       log("loadAudio", e, audioId);
-      setStatus("取回音频失败: " + e.message, true);
+      setBtn("play");
+      setError("取回音频失败: " + e.message);
     });
   }
 
@@ -399,7 +514,7 @@
     try {
       if (audio.paused) {
         var p = audio.play();
-        if (p && typeof p.catch === "function") p.catch(function (e) { log("play", e); setStatus("播放失败: " + e.message, true); });
+        if (p && typeof p.catch === "function") p.catch(function (e) { log("play", e); setError("播放失败: " + e.message); });
       } else {
         audio.pause();
       }
@@ -408,69 +523,76 @@
     }
   });
 
-  audio.addEventListener("play", function () { showPlaying(true); setStatus(""); setPet("talk"); });
-  audio.addEventListener("pause", function () { showPlaying(false); setPet("idle"); });
-  audio.addEventListener("ended", function () { showPlaying(false); setPet("happy"); });
+  audio.addEventListener("play", function () { setBtn("pause"); setError(""); setPet("talk"); updateProgress(); });
+  audio.addEventListener("pause", function () { setBtn("play"); setPet("idle"); updateProgress(); });
+  audio.addEventListener("ended", function () { setBtn("play"); setPet("happy"); updateProgress(); });
   audio.addEventListener("error", function () {
     var code = audio.error ? audio.error.code : "?";
     log("audio.error", new Error("media error code " + code));
-    setStatus("音频无法播放 (错误码 " + code + ")", true);
+    setBtn("play");
+    setError("音频无法播放 (错误码 " + code + ")");
   });
-  audio.addEventListener("loadedmetadata", function () { durEl.textContent = fmt(audio.duration); });
-  audio.addEventListener("timeupdate", function () {
-    var d = audio.duration, t = audio.currentTime;
-    curEl.textContent = fmt(t);
-    var pct = d > 0 ? Math.min(100, (t / d) * 100) : 0;
-    fillEl.style.width = pct + "%";
-    barEl.setAttribute("aria-valuenow", String(Math.round(pct)));
-  });
+  audio.addEventListener("loadedmetadata", updateProgress);
+  audio.addEventListener("durationchange", updateProgress);
+  audio.addEventListener("timeupdate", updateProgress);
 
   function seekFromEvent(ev) {
     try {
-      var rect = barEl.getBoundingClientRect();
+      var rect = waveEl.getBoundingClientRect();
       var ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
-      if (audio.duration > 0) audio.currentTime = ratio * audio.duration;
+      if (audio.duration > 0) { audio.currentTime = ratio * audio.duration; updateProgress(); }
     } catch (e) {
       log("seek", e);
     }
   }
-  barEl.addEventListener("pointerdown", function (ev) {
-    seekFromEvent(ev);
-    var move = function (e2) { seekFromEvent(e2); };
-    var up = function () { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+  waveEl.addEventListener("pointerdown", function (ev) {
+    try {
+      seekFromEvent(ev);
+      waveEl.setPointerCapture(ev.pointerId);
+      var move = function (e2) { seekFromEvent(e2); };
+      var up = function () {
+        waveEl.removeEventListener("pointermove", move);
+        waveEl.removeEventListener("pointerup", up);
+        waveEl.removeEventListener("pointercancel", up);
+      };
+      waveEl.addEventListener("pointermove", move);
+      waveEl.addEventListener("pointerup", up);
+      waveEl.addEventListener("pointercancel", up);
+    } catch (e) {
+      log("wave.pointerdown", e);
+    }
   });
-  barEl.addEventListener("keydown", function (ev) {
+  waveEl.addEventListener("keydown", function (ev) {
     try {
       if (ev.key === "ArrowRight") audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
       else if (ev.key === "ArrowLeft") audio.currentTime = Math.max(0, audio.currentTime - 5);
+      else if (ev.key === " " || ev.key === "Enter") { ev.preventDefault(); playBtn.click(); }
     } catch (e) { log("keydown", e); }
   });
 
   /* ---------- 启动握手 ---------- */
 
+  buildBars();
   initPet();
   bindLink("link-pet");
   bindLink("link-src");
 
   if (typeof ResizeObserver === "function") {
-    new ResizeObserver(function () { if (initialized) reportSize(); }).observe(document.documentElement);
+    new ResizeObserver(function () { buildBars(); if (initialized) reportSize(); }).observe(document.documentElement);
   }
 
   request("ui/initialize", {
-    appInfo: { name: "cove-player", version: "1.0.0" },
+    appInfo: { name: "cove-player", version: "1.1.0" },
     appCapabilities: {},
     protocolVersion: PROTOCOL_VERSION
   }).then(function (res) {
     initialized = true;
     applyHostContext((res && res.hostContext) || {});
     notify("ui/notifications/initialized", {});
-    setStatus("等待合成结果…");
     reportSize();
   }).catch(function (e) {
     log("initialize", e);
-    setStatus("无法连接到宿主: " + e.message, true);
+    setError("无法连接到宿主: " + e.message);
   });
 })();
 </script>
