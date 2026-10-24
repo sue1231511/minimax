@@ -2,35 +2,52 @@
 
 让 Claude 能用 Cove 的声音说话！
 
-## 部署步骤
+## 部署
 
-### 1. 上传到 GitHub
-创建一个新仓库，把这三个文件上传上去：
-- `server.py`
-- `requirements.txt`  
-- `Dockerfile`
+### 1. 配置
+通过环境变量配置：
 
-### 2. Zeabur 部署
-1. 登录 Zeabur
-2. 新建项目 → 从 GitHub 导入
-3. 选择刚才的仓库
-4. 添加环境变量：
-   - `MINIMAX_API_KEY` = 你的 MiniMax API Key
-   - `MINIMAX_GROUP_ID` = 你的 MiniMax Group ID
-   - `MINIMAX_API_HOST` = `https://api.minimaxi.chat`（国内版）
-5. 部署完成后记下域名，例如 `https://xxx.zeabur.app`
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `MINIMAX_API_KEY` | 是 | MiniMax API Key |
+| `MINIMAX_GROUP_ID` | 是 | MiniMax Group ID |
+| `MINIMAX_API_HOST` | 否 | 默认 `https://api.minimaxi.chat`（国内版） |
+| `PORT` | 否 | 监听端口，默认 `8000` |
+| `LOG_LEVEL` | 否 | 日志级别，默认 `INFO` |
 
-### 3. 连接 Claude.ai
-1. 打开 Claude.ai
-2. Settings → Integrations → Add More
-3. 填入 MCP URL：`https://你的域名.zeabur.app/sse`
-4. 保存
+### 2. 运行
+用仓库里的 `Dockerfile` 构建并运行（镜像会带上 `server.py` 和 `player.html`），或者直接：
 
-### 4. 使用
+```bash
+pip install -r requirements.txt
+python server.py
+```
+
+### 3. 接口
+
+| 路径 | 说明 |
+|------|------|
+| `/sse` | MCP 连接地址（SSE） |
+| `/messages/` | MCP 消息投递 |
+| `/health` | 健康检查，返回 `ok` |
+| `/audio` | 音频代理（带 CORS 头） |
+
+### 4. 连接
+在支持 MCP 的客户端里添加服务器，URL 填 `http(s)://<主机>:<端口>/sse`。
+
+### 5. 使用
 对 Claude 说：
 > "用 Cove 的声音说：猫猫晚安"
 
-Claude 会调用这个服务生成语音，然后给你一个播放器！
+## 工具
+
+| 工具 | 说明 |
+|------|------|
+| `text_to_speech` | 合成语音，返回音频链接（24 小时有效） |
+| `speak_player` | 合成语音，并在对话里显示播放器，直接点播放即可 |
+| `list_voices` | 列出可用声音和情绪 |
+
+播放器是一条无文字的语音条：Clawd 像素形象会跟随播放状态变化，波形可以点击或拖动跳转。
 
 ## 声音选项
 
@@ -42,3 +59,11 @@ Claude 会调用这个服务生成语音，然后给你一个播放器！
 
 ## 费用
 MiniMax 新用户免费 1 万声贝（约 12 分钟语音）
+
+## 源码与协议
+
+本项目以 [AGPL-3.0](../LICENSE) 协议开源，源码：https://github.com/sue1231511/minimax
+
+对话内播放器里的像素形象 Clawd 及其动画逻辑来自 [watersalt0305/operit-clawd](https://github.com/watersalt0305/operit-clawd)（AGPL-3.0，作者 watersalt0305 / Mishio）。Clawd 是 Anthropic 旗下 Claude Code 的吉祥物，形象归 Anthropic 所有；这里是非官方粉丝使用，与 Anthropic 无关。
+
+AGPL-3.0 第 13 条要求：通过网络使用本服务的人必须能拿到对应源码。播放器页面底部已放置指向本仓库的"本服务源码"链接。如果你自行部署并修改了代码，请把链接换成你自己的仓库地址（`player.html` 里的 `link-src`）。
