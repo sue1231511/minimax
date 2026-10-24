@@ -45,11 +45,18 @@
   .bar { position: relative; height: 6px; margin: 8px 0 4px; background: var(--track); border-radius: 3px; cursor: pointer; touch-action: none; }
   .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 3px; }
   .time { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .pet { flex: 0 0 auto; width: 84px; height: 60px; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 4px 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+  .foot a { color: inherit; text-decoration: underline; text-underline-offset: 2px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+  .foot a:hover { color: var(--accent); }
+  .foot svg { width: 12px; height: 12px; display: block; }
+  @media (max-width: 360px) { .pet { width: 56px; height: 40px; } }
   .hidden, .btn svg.hidden { display: none; }
 </style>
 </head>
 <body>
 <div class="card" id="card">
+  <canvas class="pet" id="pet" width="28" height="20" role="img" aria-label="Clawd"></canvas>
   <button class="btn" id="play" type="button" aria-label="播放" disabled>
     <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
     <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
@@ -60,6 +67,10 @@
     <div class="bar" id="bar" role="slider" aria-label="进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="fill" id="fill"></div></div>
     <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
   </div>
+</div>
+<div class="foot" id="foot">
+  <span>像素形象 Clawd 来自 <a id="link-pet" href="https://github.com/watersalt0305/operit-clawd" target="_blank" rel="noopener noreferrer">operit-clawd</a>（AGPL-3.0，非官方粉丝作品，形象归 Anthropic）</span>
+  <a id="link-src" href="https://github.com/sue1231511/minimax" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7 3 12l5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg>本服务源码</a>
 </div>
 <audio id="audio" preload="auto"></audio>
 
@@ -90,12 +101,98 @@
   function setStatus(text, isErr) {
     statusEl.textContent = text || "";
     statusEl.className = "status" + (isErr ? " err" : "");
+    if (isErr) setPet("error");
   }
 
   function fmt(t) {
     if (!isFinite(t) || t < 0) t = 0;
     var m = Math.floor(t / 60), s = Math.floor(t % 60);
     return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  /* ---------- Clawd 像素形象（素材来自 watersalt0305/operit-clawd，AGPL-3.0） ---------- */
+
+  var FRAME = 32;                            // 源图每帧 32x32
+  var CROP = { x: 2, y: 3, w: 28, h: 20 };   // 裁掉四周空白，只留螃蟹所在区域
+  var PET = {
+    idle: { fps: 3.85, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAqklEQVR42u3ZywmFMBQEUPvIwrIsxVqtRnERcOEHQYhkzgFXgQx4hwvvOQwAAAAAAAAAAAAAQM+WeVrfPL3lm7/5K0BwAeTLj16A9eJSxsvQ41mv+ekF9P4tgOgFIL9d/n7/U3499/4bbZ6vN1Hr/PQCmL8FEF0A+fItwODfQApg/ubvTxD58n0GrRefBdyd9ZCvAOZvAQQXQL789HwAAAAAAAAAAAAA4Dc2ik7w2YGe5PcAAAAASUVORK5CYII=" },
+    look: { fps: 3.33, frames: 8, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAAAmklEQVR42u3YQQqAIBBAUe/homN5lM7aaWwVuAkUMkvfg2jh4gcTQxQCAAAAAAAAAAAAADCzY0+55dLX15+nbwD6+hZAyjFut9HyrEe/tq3f7wUcOf+WZ9C3APQtAP23Pz2e/hTR19cf1zcAff2VF4CfIPr6+gagr7/yArgeorzXnunr6/+/bwD6+isvAAAAAAAAAAAAAADgK07HaRtIf6SrvQAAAABJRU5ErkJggg==" },
+    talk: { fps: 4.55, frames: 4, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAApElEQVR42u3WwQmEMBAFUPvwYFlbirXagCd7cBERgyiurBKcvAfBQyA/ZMaQqgIAgH8MQz+eDflx8xVAA8whdd1kPYAlf28fOfLTfUTO9we6ARSg+AbI/QiV/5Cu/YxXhvxY+QqgAeaFpxflUWg6Jz9WvgIk6+/tYTsXJv/q1XP3VSQ/b74ClN4AHkHyHYD8dRPp99c5+THyFaD0BgAAAAAA4I2+iDkiqYgvW6wAAAAASUVORK5CYII=" },
+    happy: { fps: 9.09, frames: 6, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAAAgCAYAAABEmHeFAAABHUlEQVR42u3ZUQqCQBQFUPfhR8tqKbWSvltV0D6i30JIGGQCddQZnXMgCixf6n1vpJoGAAAAAKr3vJw/3WOrz61R//24flxJJulD0wdp7mOpBkiprwFM4CoboDuG/jjC13taATXAxgGMhSbcX9ue/taKbUudwGNqbFl/6wGgATJdgGFowoDFgjbcNtzP1BAuVV8DHKwB5kzAJRrgdb+Nvujde1MCGGualPp7PP+7n8Rr1J87Afd4/LEVwPnPuPLk/gK5JmBJAXT+C2iAsUugAKp/pPxZAn/fIXweu+0I9au9BQuXtSlL4NInQgPU2QDZ81fSz2C5A1jCDxG1NWAx+TOBqfkWrPEHCLmbL3v+TGBqvgUEAAAAAAAAACjcF4vVXeqqhECLAAAAAElFTkSuQmCC" },
+    error: { fps: 11.11, frames: 4, src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAAgCAYAAADaInAlAAAAz0lEQVR42u3XwQ2CMBQGYPbg4DoOYOIoupqjmHD04AKeIRy4GINBKa+l35f0pCn/kz9FmgYAAGBVz9OxH1et10+l6x79uBSgwgJMN7+IEihA+gIUcxrgP4ATYGPX2+v/2e+Xc79kpRomKkcO8/+SYbz5qxWgbQ9fLzp9J2UBInLkMH9ohvfN5y68xQmwdY4c5g/N4ASo9ARY+tzJ5Rm8Vo4c5g/NoACVF8BbQNlvAc2efgAFCM4wbfpp87nP9pIjh/lDMyhA5QUAAAAAAKBUA/NS3/B2C/lCAAAAAElFTkSuQmCC" }
+  };
+  var petCv = $("pet"), petCtx = null, petImgs = {}, petState = null, petFrame = 0, petTimer = null;
+  var reduceMotion = false;
+  try { reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { log("reduceMotion", e); }
+
+  function petDraw() {
+    try {
+      var img = petImgs[petState];
+      if (!petCtx || !img || !img.complete || !img.naturalWidth) return;
+      petCtx.clearRect(0, 0, CROP.w, CROP.h);
+      petCtx.drawImage(img, petFrame * FRAME + CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, CROP.w, CROP.h);
+    } catch (e) {
+      log("petDraw", e, petState + "#" + petFrame);
+    }
+  }
+
+  function petTick() {
+    try {
+      var def = PET[petState];
+      if (!def) return;
+      petFrame = (petFrame + 1) % def.frames;
+      petDraw();
+      petTimer = setTimeout(petTick, 1000 / def.fps);
+    } catch (e) {
+      log("petTick", e, petState);
+    }
+  }
+
+  function setPet(state) {
+    try {
+      if (!PET[state] || state === petState) return;
+      petState = state;
+      petFrame = 0;
+      clearTimeout(petTimer);
+      petDraw();
+      if (!reduceMotion) petTimer = setTimeout(petTick, 1000 / PET[state].fps);
+    } catch (e) {
+      log("setPet", e, state);
+    }
+  }
+
+  function initPet() {
+    try {
+      petCtx = petCv.getContext("2d");
+      petCtx.imageSmoothingEnabled = false;
+      Object.keys(PET).forEach(function (k) {
+        var img = new Image();
+        img.onload = function () { if (petState === k) petDraw(); };
+        img.onerror = function () { log("petImage", new Error("sprite load failed"), k); };
+        img.src = PET[k].src;
+        petImgs[k] = img;
+      });
+      setPet("idle");
+    } catch (e) {
+      log("initPet", e);
+    }
+  }
+
+  /* 外链：优先让宿主在浏览器里打开(ui/open-link)，失败再回退到普通新窗口 */
+  function bindLink(id) {
+    var a = $(id);
+    a.addEventListener("click", function (ev) {
+      try {
+        ev.preventDefault();
+        var url = a.getAttribute("href");
+        request("ui/open-link", { url: url }).catch(function (e) {
+          log("open-link", e, url);
+          try { window.open(url, "_blank", "noopener"); } catch (e2) { log("open-link.fallback", e2, url); }
+        });
+      } catch (e) {
+        log("bindLink", e, id);
+      }
+    });
   }
 
   function showPlaying(on) {
@@ -269,6 +366,7 @@
 
   function loadAudio(audioId) {
     setStatus("正在取回音频…");
+    setPet("look");
     playBtn.disabled = true;
     callFetchTool(audioId).then(function (res) {
       var text = res && res.content && res.content[0] && res.content[0].text;
@@ -286,6 +384,7 @@
           // 浏览器拦截自动播放时，等用户点一下播放键即可
           log("autoplay", e);
           setStatus("点击播放键收听");
+          setPet("idle");
         });
       }
     }).catch(function (e) {
@@ -309,9 +408,9 @@
     }
   });
 
-  audio.addEventListener("play", function () { showPlaying(true); setStatus(""); });
-  audio.addEventListener("pause", function () { showPlaying(false); });
-  audio.addEventListener("ended", function () { showPlaying(false); });
+  audio.addEventListener("play", function () { showPlaying(true); setStatus(""); setPet("talk"); });
+  audio.addEventListener("pause", function () { showPlaying(false); setPet("idle"); });
+  audio.addEventListener("ended", function () { showPlaying(false); setPet("happy"); });
   audio.addEventListener("error", function () {
     var code = audio.error ? audio.error.code : "?";
     log("audio.error", new Error("media error code " + code));
@@ -350,6 +449,10 @@
   });
 
   /* ---------- 启动握手 ---------- */
+
+  initPet();
+  bindLink("link-pet");
+  bindLink("link-src");
 
   if (typeof ResizeObserver === "function") {
     new ResizeObserver(function () { if (initialized) reportSize(); }).observe(document.documentElement);
